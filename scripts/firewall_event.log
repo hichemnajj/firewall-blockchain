@@ -1,0 +1,62 @@
+[
+  {
+    "source_ip": "10.0.0.5",
+    "destination_ip": "8.8.8.8",
+    "action": "ALLOW",
+    "message": "Connection allowed by firewall"
+  },
+  {
+    "source_ip": "172.16.0.3",
+    "destination_ip": "8.8.8.8",
+    "action": "BLOCK",
+    "message": "Connection blocked due to policy"
+  },
+  {
+    "source_ip": "192.168.1.10",
+    "destination_ip": "192.168.1.1",
+    "action": "BLOCK",
+    "message": "User login successful"
+  },
+  {
+    "source_ip": "192.168.1.10",
+    "destination_ip": "8.8.8.8",
+    "action": "BLOCK",
+    "message": "Connection blocked due to policy"
+  },
+  {
+    "source_ip": "172.16.0.3",
+    "destination_ip": "1.1.1.1",
+    "action": "ALLOW",
+    "message": "Connection blocked due to policy"
+  },
+  {
+    "source_ip": "10.0.0.5",
+    "destination_ip": "8.8.8.8",
+    "action": "BLOCK",
+    "message": "Connection allowed by firewall"
+  },
+  {
+    "source_ip": "172.16.0.3",
+    "destination_ip": "192.168.1.1",
+    "action": "ALLOW",
+    "message": "Failed login attempt"
+  },
+  {
+    "source_ip": "192.168.1.10",
+    "destination_ip": "8.8.8.8",
+    "action": "ALLOW",
+    "message": "User login successful"
+  },
+  {
+    "source_ip": "192.168.1.10",
+    "destination_ip": "192.168.1.1",
+    "action": "BLOCK",
+    "message": "User login successful"
+  },
+  {
+    "source_ip": "10.0.0.5",
+    "destination_ip": "8.8.8.8",
+    "action": "BLOCK",
+    "message": "Suspicious activity detected"
+  }
+]
