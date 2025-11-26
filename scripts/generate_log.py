@@ -3,15 +3,15 @@ import random
 import os
 import requests
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
+from web3.middleware import geth_poa_middleware  # Correct import for Web3 v7+
 
-# --- Constants from Docker ENV ---
-WEB3_PROVIDER = os.getenv("WEB3_PROVIDER", "http://geth:8545")
-IPFS_API = os.getenv("IPFS_API", "http://ipfs:5001")
-CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS")
-SENDER_ADDRESS = os.getenv("SENDER_ADDRESS")
-CONTRACT_ABI_PATH = os.getenv("CONTRACT_ABI_PATH", "/app/IPFSLogger.json")
-LOG_FILENAME = os.getenv("LOG_FILENAME", "firewall_event.log")
+# --- Constants ---
+
+WEB3_PROVIDER = "http://127.0.0.1:8545"
+CONTRACT_ADDRESS = "0x4aE7C7D4d17C0964261B05869b19d7F5e0ABf90A"
+SENDER_ADDRESS = "0x229341f478474e1c41d0f02319c82adb937888c5"
+CONTRACT_ABI_PATH = "/home/hichem/hardhat-project/artifacts/contracts/IPFSLogger.sol/IPFSLogger.json"
+LOG_FILENAME = "firewall_event.log"
 
 SOURCE_IPS = ['192.168.1.10', '10.0.0.5', '172.16.0.3']
 DESTINATION_IPS = ['8.8.8.8', '1.1.1.1', '192.168.1.1']
@@ -39,74 +39,81 @@ def write_logs_to_file(filename, num_logs=10):
     print(f"Generated {num_logs} logs in {filename}")
 
 def add_file_to_ipfs(filepath):
-    ipfs_url = f"{IPFS_API}/api/v0/add"
+    ipfs_api_url = 'http://127.0.0.1:5001/api/v0/add'
+
     if not os.path.exists(filepath):
         print(f"File {filepath} does not exist!")
         return None
+
     with open(filepath, 'rb') as f:
         files = {'file': f}
         try:
-            response = requests.post(ipfs_url, files=files)
+            response = requests.post(ipfs_api_url, files=files)
             response.raise_for_status()
-            return response.json()['Hash']
+            ipfs_hash = response.json()['Hash']
+            print(f"File added to IPFS with hash: {ipfs_hash}")
+            return ipfs_hash
         except Exception as e:
             print(f"Error adding file to IPFS: {e}")
             return None
 
 def pin_file_on_ipfs(ipfs_hash):
-    pin_url = f"{IPFS_API}/api/v0/pin/add?arg={ipfs_hash}"
+    pin_api_url = f'http://127.0.0.1:5001/api/v0/pin/add?arg={ipfs_hash}'
     try:
-        requests.post(pin_url).raise_for_status()
+        response = requests.post(pin_api_url)
+        response.raise_for_status()
+        print(f"File pinned on IPFS with hash: {ipfs_hash}")
         return True
     except Exception as e:
-        print(f"Error pinning: {e}")
+        print(f"Error pinning file on IPFS: {e}")
         return False
 
 def send_hash_to_contract(ipfs_hash):
     try:
         with open(CONTRACT_ABI_PATH, 'r') as abi_file:
-            contract_abi = json.load(abi_file)["abi"]
+            abi_data = json.load(abi_file)
+            contract_abi = abi_data.get("abi", abi_data)  # fallback to entire file if no "abi" key
     except Exception as e:
-        print(f"Failed ABI: {e}")
+        print(f"Failed to load contract ABI: {e}")
         return
 
     w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER))
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
     if not w3.is_connected():
-        print("Cannot connect to Geth testnet!")
+        print("Cannot connect to Ethereum node.")
         return
 
-    contract = w3.eth.contract(
-        address=Web3.to_checksum_address(CONTRACT_ADDRESS),
-        abi=contract_abi
-    )
+    try:
+        contract_address = Web3.to_checksum_address(CONTRACT_ADDRESS)
+        sender_address = Web3.to_checksum_address(SENDER_ADDRESS)
+    except Exception as e:
+        print(f"Invalid Ethereum address format: {e}")
+        return
 
-    txn = contract.functions.storeLog(ipfs_hash).build_transaction({
-        'from': Web3.to_checksum_address(SENDER_ADDRESS),
-        'nonce': w3.eth.get_transaction_count(SENDER_ADDRESS),
-        'gas': 200000,
-        'gasPrice': w3.eth.gas_price
-    })
+    contract = w3.eth.contract(address=contract_address, abi=contract_abi)
 
     try:
-        tx_hash = w3.eth.send_transaction(txn)
-        print("TX:", tx_hash.hex())
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        print("Mined block:", receipt.blockNumber)
-    except Exception as e:
-        print("Send TX error:", e)
+        txn = contract.functions.storeLog(ipfs_hash).build_transaction({
+            'from': sender_address,
+            'nonce': w3.eth.get_transaction_count(sender_address),
+            'gas': 200000,
+            'gasPrice': w3.eth.gas_price
+        })
 
+        # Since your node unlocks the account, we can send raw txn this way
+        tx_hash = w3.eth.send_transaction(txn)
+        print(f"Transaction sent: {tx_hash.hex()}")
+
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        print(f"Transaction mined in block {receipt.blockNumber}")
+
+    except Exception as e:
+        print(f"Error sending transaction: {e}")
 
 if __name__ == "__main__":
-    write_logs_to_file(LOG_FILENAME)
+    write_logs_to_file(LOG_FILENAME, num_logs=10)
     ipfs_hash = add_file_to_ipfs(LOG_FILENAME)
     if ipfs_hash:
         if pin_file_on_ipfs(ipfs_hash):
             send_hash_to_contract(ipfs_hash)
-
-
-
-
-
-
